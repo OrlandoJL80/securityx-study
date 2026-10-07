@@ -1,5 +1,5 @@
 const PIN = "CAS005";
-const ACCOUNTS = ["Orlando", "Scott", "Daniel", "Donald", "Leslie", "Jaye", "Kelly", "Albert", "Johnny", "Mark", "Kevin"];
+const ACCOUNTS = ["Orlando", "Scott", "Daniel", "Donald", "Leslie", "Jaye", "Kelly", "Albert", "Johnny", "Mark", "Kevin", "Andy"];
 const EXAM_MIX = { 1: 18, 2: 24, 3: 28, 4: 20 };
 const STORE = "sx_cas005_study_v3";
 const LEGACY_STORE = "sx_cas005_study_v2";

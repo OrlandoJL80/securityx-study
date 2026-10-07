@@ -25,7 +25,7 @@ begin
   end if;
   if p_name not in (
     'Orlando', 'Scott', 'Daniel', 'Donald', 'Leslie',
-    'Jaye', 'Kelly', 'Albert', 'Johnny', 'Mark', 'Kevin'
+    'Jaye', 'Kelly', 'Albert', 'Johnny', 'Mark', 'Kevin', 'Andy'
   ) then
     raise exception 'unknown account';
   end if;
@@ -46,7 +46,7 @@ begin
   end if;
   if p_name not in (
     'Orlando', 'Scott', 'Daniel', 'Donald', 'Leslie',
-    'Jaye', 'Kelly', 'Albert', 'Johnny', 'Mark', 'Kevin'
+    'Jaye', 'Kelly', 'Albert', 'Johnny', 'Mark', 'Kevin', 'Andy'
   ) then
     raise exception 'unknown account';
   end if;

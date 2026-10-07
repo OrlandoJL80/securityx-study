@@ -9,7 +9,7 @@ GROUP (no setup)
 --------------------------------
 Open the link Orlando sends.
 Pick your name. Enter PIN CAS005.
-Orlando, Scott, Daniel, Donald, Leslie, Jaye, Kelly, Albert, Johnny, Mark, Kevin.
+Orlando, Scott, Daniel, Donald, Leslie, Jaye, Kelly, Albert, Johnny, Mark, Kevin, Andy.
 The home screen should say saved to Supabase.
 
 --------------------------------

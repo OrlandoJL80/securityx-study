@@ -17,7 +17,7 @@ DATA = ROOT / "data" / "accounts.json"
 PIN = "CAS005"
 ACCOUNTS = [
     "Orlando", "Scott", "Daniel", "Donald", "Leslie",
-    "Jaye", "Kelly", "Albert", "Johnny", "Mark", "Kevin",
+    "Jaye", "Kelly", "Albert", "Johnny", "Mark", "Kevin", "Andy",
 ]
 LOCK = threading.Lock()
 PORT = 8080
