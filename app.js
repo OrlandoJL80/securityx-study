@@ -378,10 +378,20 @@ function renderHome() {
   $("missed-count").textContent = st.missed;
   $("mastered-count").textContent = st.mastered;
   $("weak-count").textContent = st.weak;
+  $("exam-label").textContent = buttonResume("exam", "90-question practice exam");
+  $("all-label").textContent = buttonResume("all", "Active rotation");
+  $("missed-label").textContent = buttonResume("missed", "Missed only (" + st.missed + ")");
   $("who-title").textContent = state.user + " · choose a drill";
   paintSync();
 }
 
+function buttonResume(key, base) {
+  const slot = (loadStore().resume || {})[String(key)];
+  if (!slot || !Array.isArray(slot.order) || !slot.order.length) return base;
+  const n = Math.min((slot.idx || 0) + 1, slot.order.length);
+  if (n <= 1) return base;
+  return base + " · resume " + n + "/" + slot.order.length;
+}
 function resumeLabel(key) {
   const slot = (loadStore().resume || {})[String(key)];
   if (!slot || !Array.isArray(slot.order) || !slot.order.length) return "";
@@ -449,6 +459,11 @@ function isScoreable(q) {
 }
 
 function startExam() {
+  const saved = queueFromSaved((loadStore().resume || {}).exam, (q) => isScoreable(q));
+  if (saved) {
+    beginQueue(saved.qs, "90-question practice exam", { idx: saved.idx, resumeKey: "exam" });
+    return;
+  }
   const byD = { 1: [], 2: [], 3: [], 4: [] };
   state.data.questions.forEach((q) => {
     if (isScoreable(q)) byD[q.domain].push(q);
@@ -457,13 +472,12 @@ function startExam() {
   Object.entries(EXAM_MIX).forEach(([d, n]) => {
     mix.push(...pickForExam(byD[Number(d)], Number(n)));
   });
-  // If a domain ran short, backfill from remaining weak items, then anything not mastered.
   if (mix.length < 90) {
     const used = new Set(mix.map((q) => q.id));
     const rest = state.data.questions.filter((q) => !used.has(q.id) && isScoreable(q));
     mix.push(...pickForExam(rest, 90 - mix.length));
   }
-  beginQueue(shuffled(mix.slice(0, 90)), "90-question practice exam");
+  beginQueue(shuffled(mix.slice(0, 90)), "90-question practice exam", { idx: 0, resumeKey: "exam" });
 }
 
 function pickForExam(pool, n) {

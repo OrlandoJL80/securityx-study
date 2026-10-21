@@ -44,9 +44,9 @@
         <p class="muted">One question at a time. Submit before the key is shown. Items you get right three times in a row leave active rotation. The 90-question exam prefers items you have missed twice or more.</p>
         <p class="statline">Mastered (3 in a row): <b id="mastered-count">0</b> · Weak (missed 2+): <b id="weak-count">0</b></p>
         <div class="grid" style="margin-top:12px">
-          <button class="gold" onclick="startExam()">90-question practice exam</button>
-          <button class="secondary" onclick="startAll()">Active rotation</button>
-          <button class="secondary" onclick="startMissed()">Missed only (<span id="missed-count">0</span>)</button>
+          <button class="gold" onclick="startExam()"><span id="exam-label">90-question practice exam</span></button>
+          <button class="secondary" onclick="startAll()"><span id="all-label">Active rotation</span></button>
+          <button class="secondary" onclick="startMissed()"><span id="missed-label">Missed only (<span id="missed-count">0</span>)</span></button>
           <button class="secondary" onclick="showAccounts()">Accounts</button>
           <button class="secondary" onclick="resetProgress()">Reset my progress</button>
         </div>
@@ -99,6 +99,6 @@
   </main>
   <script src="supabase-config.js"></script>
   <script src="questions-data.js"></script>
-  <script src="app.js?v=resume1"></script>
+  <script src="app.js?v=resume2"></script>
 </body>
 </html>
