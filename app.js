@@ -135,13 +135,19 @@ const THINK = {
   4: "Think like a SOC lead: what evidence or action stops the bleeding first?",
 };
 
-function emptyStore() { return { history: {}, updated: "" }; }
+function emptyStore() { return { history: {}, resume: {}, updated: "" }; }
 function storeKey(name) { return STORE + ":" + (name || state.user || "anon"); }
 function loadStore() {
-  try { return JSON.parse(localStorage.getItem(storeKey()) || "") || emptyStore(); }
-  catch { return emptyStore(); }
+  try {
+    const parsed = JSON.parse(localStorage.getItem(storeKey()) || "") || emptyStore();
+    parsed.history = parsed.history || {};
+    parsed.resume = parsed.resume || {};
+    return parsed;
+  } catch { return emptyStore(); }
 }
 function saveStore(obj) {
+  obj.history = obj.history || {};
+  obj.resume = obj.resume || {};
   obj.updated = new Date().toISOString();
   localStorage.setItem(storeKey(), JSON.stringify(obj));
   pushRemote(obj);
@@ -184,6 +190,20 @@ function mergeHistory(a, b) {
   });
   return out;
 }
+function unpackRemote(raw) {
+  if (raw && raw.history && typeof raw.history === "object" && !("seen" in raw.history)) {
+    return { history: raw.history || {}, resume: raw.resume || {} };
+  }
+  return { history: raw || {}, resume: {} };
+}
+function mergeResume(a, b) {
+  const out = { ...(a || {}) };
+  Object.entries(b || {}).forEach(([key, slot]) => {
+    const prev = out[key];
+    if (!prev || String(slot.updated || "") >= String(prev.updated || "")) out[key] = slot;
+  });
+  return out;
+}
 async function pullRemote() {
   if (!state.user) return;
   if (!supabaseReady()) {
@@ -198,16 +218,17 @@ async function pullRemote() {
       body: JSON.stringify({ p_name: state.user, p_pin: PIN }),
     });
     if (!res.ok) throw new Error("supabase " + res.status);
-    const remoteHistory = await res.json();
+    const remote = unpackRemote(await res.json());
     const local = loadStore();
     const merged = emptyStore();
-    merged.history = mergeHistory(local.history, remoteHistory || {});
+    merged.history = mergeHistory(local.history, remote.history);
+    merged.resume = mergeResume(local.resume, remote.resume);
     merged.updated = new Date().toISOString();
     localStorage.setItem(storeKey(), JSON.stringify(merged));
     state.sync = "cloud";
-    if (JSON.stringify(merged.history) !== JSON.stringify(remoteHistory || {})) {
-      pushRemote(merged);
-    }
+    const remotePacked = JSON.stringify({ history: remote.history || {}, resume: remote.resume || {} });
+    const localPacked = JSON.stringify({ history: merged.history, resume: merged.resume });
+    if (localPacked !== remotePacked) pushRemote(merged);
   } catch {
     state.sync = "local";
   }
@@ -223,7 +244,7 @@ function pushRemote(obj) {
     body: JSON.stringify({
       p_name: state.user,
       p_pin: PIN,
-      p_history: obj.history || {},
+      p_history: { history: obj.history || {}, resume: obj.resume || {} },
     }),
   }).then((res) => {
     state.sync = res.ok ? "cloud" : "local";
@@ -351,7 +372,7 @@ function renderHome() {
     const weak = qs.filter(isWeak).length;
     return `<button class="domain-btn" onclick="startDomain(${d})">
       Domain ${d}: ${state.data.domains[d].short}
-      <small>${qs.length} in bank · ${state.data.domains[d].weight} of the real exam<br>${live} still in rotation · ${weak} missed 2+</small>
+      <small>${qs.length} in bank · ${state.data.domains[d].weight} of the real exam<br>${live} still in rotation · ${weak} missed 2+${resumeLabel(d)}</small>
     </button>`;
   }).join("");
   $("missed-count").textContent = st.missed;
@@ -361,25 +382,65 @@ function renderHome() {
   paintSync();
 }
 
+function resumeLabel(key) {
+  const slot = (loadStore().resume || {})[String(key)];
+  if (!slot || !Array.isArray(slot.order) || !slot.order.length) return "";
+  const n = Math.min((slot.idx || 0) + 1, slot.order.length);
+  if (n <= 1) return "";
+  return `<br>Resume at ${n} of ${slot.order.length}`;
+}
+function queueFromSaved(slot, allowed) {
+  if (!slot || !Array.isArray(slot.order)) return null;
+  const byId = new Map(state.data.questions.map((q) => [q.id, q]));
+  const qs = slot.order.map((id) => byId.get(id)).filter((q) => q && allowed(q));
+  if (!qs.length) return null;
+  const idx = Math.min(Math.max(slot.idx || 0, 0), qs.length - 1);
+  return { qs, idx };
+}
+function saveResume(idx) {
+  if (!state.resumeKey) return;
+  const s = loadStore();
+  s.resume = s.resume || {};
+  s.resume[state.resumeKey] = {
+    order: state.queue.map((q) => q.id),
+    idx: idx == null ? state.idx : idx,
+    updated: new Date().toISOString(),
+  };
+  saveStore(s);
+}
+function clearResume() {
+  if (!state.resumeKey) return;
+  const s = loadStore();
+  s.resume = s.resume || {};
+  delete s.resume[state.resumeKey];
+  saveStore(s);
+  state.resumeKey = "";
+}
 function startDomain(d) {
-  const qs = state.data.questions.filter((q) => q.domain === d && !isMastered(q));
+  const allowed = (q) => q.domain === d;
+  const saved = queueFromSaved((loadStore().resume || {})[String(d)], allowed);
+  const qs = saved ? saved.qs : shuffled(state.data.questions.filter((q) => q.domain === d && !isMastered(q)));
   if (!qs.length) {
     alert("Every item in this domain has a 3-in-a-row streak. Use Active rotation if you want a full refresh.");
     return;
   }
-  beginQueue(shuffled(qs), `Domain ${d}: ${domainName(d)}`);
+  beginQueue(qs, `Domain ${d}: ${domainName(d)}`, { idx: saved ? saved.idx : 0, resumeKey: String(d) });
 }
 function startAll() {
-  const qs = state.data.questions.filter((q) => !isMastered(q));
-  beginQueue(shuffled(qs.length ? qs : state.data.questions), "Active rotation");
+  const saved = queueFromSaved((loadStore().resume || {}).all, () => true);
+  const live = state.data.questions.filter((q) => !isMastered(q));
+  const qs = saved ? saved.qs : shuffled(live.length ? live : state.data.questions);
+  beginQueue(qs, "Active rotation", { idx: saved ? saved.idx : 0, resumeKey: "all" });
 }
 function startMissed() {
-  const qs = state.data.questions.filter((q) => (rec(q.id).wrong || 0) > 0 && !isMastered(q));
+  const allowed = (q) => (rec(q.id).wrong || 0) > 0 && !isMastered(q);
+  const saved = queueFromSaved((loadStore().resume || {}).missed, allowed);
+  const qs = saved ? saved.qs : shuffled(state.data.questions.filter(allowed));
   if (!qs.length) {
     alert("No open misses. Run a domain first, or those misses already have a 3-in-a-row streak.");
     return;
   }
-  beginQueue(shuffled(qs), "Missed items still in rotation");
+  beginQueue(qs, "Missed items still in rotation", { idx: saved ? saved.idx : 0, resumeKey: "missed" });
 }
 function isScoreable(q) {
   const letters = Object.keys(q.options || {});
@@ -417,13 +478,15 @@ function pickForExam(pool, n) {
   return out;
 }
 
-function beginQueue(qs, title) {
+function beginQueue(qs, title, opts) {
   state.queue = qs;
-  state.idx = 0;
+  state.idx = opts && Number.isInteger(opts.idx) ? opts.idx : 0;
+  state.resumeKey = opts && opts.resumeKey ? opts.resumeKey : "";
   state.results = [];
   $("quiz-title").textContent = title;
   show("quiz");
   renderQuestion();
+  saveResume();
 }
 function currentQ() { return state.queue[state.idx]; }
 
@@ -523,6 +586,7 @@ function submitAnswer() {
       `<b>PBQ reviewed.</b> These lab items are not letter-scored. They are excluded from the 90-question exam mix.<br><br>${why}`;
     $("btn-submit").classList.add("hidden");
     $("btn-next").classList.remove("hidden");
+    saveResume(state.idx + 1);
     return;
   }
   if (q.choose > 1 && state.selected.size !== q.choose) {
@@ -558,15 +622,18 @@ function submitAnswer() {
     `<b>${correct ? "Correct" : "Incorrect"}.</b> Key: ${[...official].join(", ") || "n/a"}<br><br>${why}<br><br><i>${trail}</i>`;
   $("btn-submit").classList.add("hidden");
   $("btn-next").classList.remove("hidden");
+  saveResume(state.idx + 1);
 }
 
 function nextQuestion() {
   if (state.idx + 1 >= state.queue.length) {
+    clearResume();
     renderScore();
     return;
   }
   state.idx += 1;
   renderQuestion();
+  saveResume();
 }
 
 function renderScore() {
